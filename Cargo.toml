@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bcrypt = { version = "0.15.1", registry = "shh" }
-jwt = { version = "0.16.0", registry = "shh" }
-rusqlite = { version = "0.32.1", registry = "shh" }
-uuid = { version = "1.11.0", registry = "shh", features = ["v4"] }
+bcrypt = { version = "0.15.1" }
+jwt = { version = "0.16.0" }
+rusqlite = { version = "0.32.1" }
+uuid = { version = "1.11.0", features = ["v4"] }
