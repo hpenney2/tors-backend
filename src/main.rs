@@ -1,15 +1,17 @@
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use tokio_rusqlite::{params, Connection, Result as SQLResult};
 use uuid::Uuid;
 use bcrypt;
-use poem::{get, post, handler, listener::TcpListener, web::Path, web::Json, web::Data, IntoResponse, Route, Server, EndpointExt, middleware::AddData};
+use jwt;
+use poem::{get, post, handler, listener::TcpListener, web::Path, web::Json, web::Data, IntoResponse, Route, Server, EndpointExt, middleware::AddData, http::StatusCode};
 // use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use serde::Deserialize;
 
 type Result<T, E = Box<dyn Error>> = std::result::Result<T, E>;
-type DbData<'a> = Data<&'a Arc<Mutex<Connection>>>;
+type DbMutex = Arc<Mutex<Connection>>;
 
 #[derive(Debug, Clone)]
 struct SignupError;
@@ -29,9 +31,13 @@ struct UserLogin {
 }
 
 #[handler]
-fn signup(Data(db_lock): DbData, Json(user): Json<UserLogin>) {
-    let mut db = db_lock.lock().unwrap();
-    create_account(&db, &user.user, &user.password);
+async fn signup(Data(db_lock): Data<&DbMutex>, Json(user): Json<UserLogin>) -> (StatusCode, String) {
+    let mut db = db_lock.lock().await;
+    let result = create_account(&db, &user.user, &user.password).await;
+    match result {
+        Ok(id) => (StatusCode::OK, id),
+        Err(_) => (StatusCode::CONFLICT, "user already exists".to_owned()),
+    }
 }
 
 
@@ -40,6 +46,11 @@ async fn main() -> Result<(), std::io::Error> {
     println!("tors backend starting");
     let db = Connection::open("./db.sqlite").await.expect("failed to connect to database");
     create_tables(&db).await.expect("failed to create tables");
+
+    db.call(|db| {
+        db.query_row("SELECT 1 FROM keys", [], |row| Ok(()))
+     });
+    let key_pair = ES384KeyPair::generate();
 
     let app = Route::new()
         .at("/newaccount", post(signup))
@@ -54,6 +65,7 @@ async fn create_tables(db: &Connection) -> SQLResult<()> {
             CREATE TABLE IF NOT EXISTS users (id TEXT NOT NULL UNIQUE, username TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS login (id TEXT PRIMARY KEY, passHash TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS todos (id TEXT PRIMARY KEY, task TEXT NOT NULL, dateCreated TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS keys (private BLOB, public BLOB);
             COMMIT;"
         )?;
         Ok(())
@@ -84,4 +96,10 @@ async fn create_account(db: &Connection, username: &str, password: &str) -> Resu
     Ok(id)
 }
 
-fn generate_auth_token(id: &str) {}
+fn generate_auth_token_db(db: &Connection, id: &str) {
+    let priv_key = db.call(|db| {
+
+    });
+}
+
+fn generate_auth_token(priv_key: &str, id: &str) {}
