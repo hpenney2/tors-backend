@@ -29,8 +29,8 @@ struct UserLogin {
 }
 
 #[handler]
-fn signup(Data(dbLock): DbData, Json(user): Json<UserLogin>) {
-    let mut db = dbLock.lock().unwrap();
+fn signup(Data(db_lock): DbData, Json(user): Json<UserLogin>) {
+    let mut db = db_lock.lock().unwrap();
     create_account(&db, &user.user, &user.password);
 }
 
@@ -62,9 +62,9 @@ async fn create_tables(db: &Connection) -> SQLResult<()> {
 
 async fn create_account(db: &Connection, username: &str, password: &str) -> Result<String> {
     if !db.call({
-            // let username = username.clone();
+            let username = username.to_string();
             move |db| {
-                Ok(db.prepare("SELECT 1 FROM users WHERE username = ?")?.query([username.clone()])?.next()?.is_none())
+                Ok(db.prepare("SELECT 1 FROM users WHERE username = ?")?.query(params![username])?.next()?.is_none())
             }
         }).await.unwrap() {
         return Err(SignupError.into());
@@ -74,12 +74,12 @@ async fn create_account(db: &Connection, username: &str, password: &str) -> Resu
     let salted_hash = bcrypt::hash_with_result(password, bcrypt::DEFAULT_COST)?;
     db.call({
         let id = id.clone();
-        let username = username.clone();
+        let username = username.to_string();
         move |db| {
             db.execute("INSERT INTO users VALUES (?, ?)", params![id, username])?;
             db.execute("INSERT INTO login VALUES (?, ?)", params![id, salted_hash.format_for_version(bcrypt::Version::TwoB)])?;
         Ok(())
-    }}).await;
+    }}).await?;
 
     Ok(id)
 }
