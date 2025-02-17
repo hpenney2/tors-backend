@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio_rusqlite::{params, Connection, Result as SQLResult};
 use uuid::Uuid;
 use bcrypt;
-use jwt;
+use jwt_simple::prelude::*;
 use poem::{get, post, handler, listener::TcpListener, web::Path, web::Json, web::Data, IntoResponse, Route, Server, EndpointExt, middleware::AddData, http::StatusCode};
 // use tokio::sync::RwLock;
 use tokio::sync::Mutex;
@@ -47,10 +47,14 @@ async fn main() -> Result<(), std::io::Error> {
     let db = Connection::open("./db.sqlite").await.expect("failed to connect to database");
     create_tables(&db).await.expect("failed to create tables");
 
-    db.call(|db| {
+    let Ok(_) = db.call_unwrap(|db| {
         db.query_row("SELECT 1 FROM keys", [], |row| Ok(()))
-     });
-    let key_pair = ES384KeyPair::generate();
+     }).await else {
+        // todo: consider not using JWT and just storing sessions like a normal person lol
+        // https://www.reddit.com/r/AskProgramming/comments/t8ge7z/what_should_be_an_ideal_database_schemafor_sql/
+        let key_pair = ES384KeyPair::generate();
+        ES384KeyPair::key_id(&self)
+     };
 
     let app = Route::new()
         .at("/newaccount", post(signup))
@@ -97,8 +101,8 @@ async fn create_account(db: &Connection, username: &str, password: &str) -> Resu
 }
 
 fn generate_auth_token_db(db: &Connection, id: &str) {
-    let priv_key = db.call(|db| {
-
+    let priv_key = db.call_unwrap(|db| {
+        db.query_row_and_then(sql, params, f)
     });
 }
 
